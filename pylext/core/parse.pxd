@@ -52,34 +52,50 @@ cdef extern from "GrammarUtils.h":
         int lpr, 
         int rpr) except +
 
+cdef extern from "Parser.h":
+
+    cdef cppclass SourceMapEntry:
+        int pyg_line, pyg_col
+        int py_line, py_col
+
+    cdef cppclass SourceMap:
+        vector[SourceMapEntry] entries
+        void add(int pyg_line, int pyg_col, int py_line, int py_col)
+        void clear()
+
 cdef extern from "PyMacro.h":
 
     cdef cppclass PythonParseContext(CParseContext):
         PythonParseContext()
 
     PythonParseContext* create_python_context(
-        bool read_by_stmt, 
+        bool read_by_stmt,
         const string& syntax_def) except +
 
     void del_python_context(PythonParseContext* px)
 
     string c_ast_to_text "ast_to_text" (
-        CParseContext *px, 
+        CParseContext *px,
         CParseNode *pn) except +
 
+    string c_ast_to_text_with_map "ast_to_text_with_map" (
+        CParseContext *px,
+        CParseNode *pn,
+        SourceMap* source_map) except +
+
     int add_token(
-        PythonParseContext *px, 
-        const string& nm, 
+        PythonParseContext *px,
+        const string& nm,
         const string& tokdef) except +
 
     int add_lexer_rule(
-        PythonParseContext *px, 
-        const string& nm, 
+        PythonParseContext *px,
+        const string& nm,
         const string& rhs) except +
 
     CParseNode* c_quasiquote "quasiquote"(
-        CParseContext*px, 
-        const string& nt, 
+        CParseContext*px,
+        const string& nt,
         const vector[string]& parts,
         const vector[CParseNode*]& subtrees) except +
 

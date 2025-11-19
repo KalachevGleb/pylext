@@ -410,6 +410,10 @@ std::string ast_to_text(ParseContext* pcontext, ParseNode *pn) {
     return tree2str(pn, pcontext->grammar_ptr().get());
 }
 
+std::string ast_to_text_with_map(ParseContext* pcontext, ParseNode *pn, SourceMap* source_map) {
+    return tree2str(pn, pcontext->grammar_ptr().get(), source_map);
+}
+
 string get_terminal_str(ParseNode* pn){
     if (!pn->isTerminal())
         throw Exception("get string value of nonterminal");

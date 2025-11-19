@@ -24,9 +24,32 @@ ParseNodePtr termnode(const Token& t, ParseContext &pt) {
 struct PrintState {
 	int indent=0;
 	int tab = 4;
-	void endl(ostream& os) const {
+	int current_line = 1;      // Current line number in output
+	int current_col = 1;       // Current column number in output
+	SourceMap* source_map = nullptr;  // Optional source map to collect mappings
+
+	void endl(ostream& os) {
 		os << "\n";
 		os << string(indent * tab, ' ');
+		current_line++;
+		current_col = 1 + indent * tab;
+	}
+
+	void addChar(char c) {
+		if (c == '\n') {
+			current_line++;
+			current_col = 1;
+		} else if (c == '\t') {
+			current_col += tab;
+		} else {
+			current_col++;
+		}
+	}
+
+	void addString(const string& s) {
+		for (char c : s) {
+			addChar(c);
+		}
 	}
 };
 
@@ -70,6 +93,7 @@ void printSpecial(ostream& os, int tn, GrammarState* g, PrintState& pst) {
             pst.endl(os);
         } else {
             os<<string(pst.tab, ' ');
+			pst.current_col += pst.tab;
         }
 	} else if (tn == g->lex.dedent_num()) {
 		pst.indent--;
@@ -81,21 +105,35 @@ void printSpecial(ostream& os, int tn, GrammarState* g, PrintState& pst) {
 
 void printTerminal(std::ostream& os, int t, const string &tok, GrammarState* g, PrintState& pst) {
 	if (tok.empty() && g->lex.is_const_token(t)) {
-		os << g->lex.const_token(t) << " ";
+		string ct = g->lex.const_token(t);
+		os << ct << " ";
+		pst.addString(ct);
+		pst.addChar(' ');
 		return;
 	}
 	int tn = g->lex.internalNum(t);
 	if (g->lex.is_special(tn)) {
 		printSpecial(os, tn, g, pst);
-	} else
+	} else {
 		os << tok << " ";
+		pst.addString(tok);
+		pst.addChar(' ');
+	}
 }
 
 void tree2str_rec(std::ostream& os, ParseNode* n, GrammarState* g, PrintState& pst) {
     if(!n){
         os<<"<null node> ";
+		pst.addString("<null node> ");
         return;
     }
+
+	// Record source mapping if source map is enabled and location is valid
+	if (pst.source_map && n->loc.beg.line > 0) {
+		pst.source_map->add(n->loc.beg.line, n->loc.beg.col,
+		                    pst.current_line, pst.current_col);
+	}
+
 	if (n->isTerminal()) {
 		return printTerminal(os, n->nt, n->term, g, pst);
 	}
@@ -160,6 +198,14 @@ void remove_double_endl(string &str) {
 string tree2str(ParseNode* pn, GrammarState* g) {
     stringstream ss;
     print_tree(ss, pn, g);
+    return ss.str();
+}
+
+string tree2str(ParseNode* pn, GrammarState* g, SourceMap* source_map) {
+    stringstream ss;
+    PrintState pst;
+    pst.source_map = source_map;
+    tree2str_rec(ss, pn, g, pst);
     return ss.str();
 }
 

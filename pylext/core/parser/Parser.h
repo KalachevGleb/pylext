@@ -12,6 +12,7 @@
 #include <any>
 #include <memory>
 #include <string>
+#include <climits>
 #include "Exception.h"
 #include "PEGLexer.h"
 #include "NTSet.h"
@@ -548,11 +549,61 @@ struct ParserError : public Exception {
     [[nodiscard]] const char *what()const noexcept override { return err.c_str(); }
 };
 
+/// Source map entry: maps a location in generated Python code to original .pyg source
+struct SourceMapEntry {
+    int pyg_line = 0, pyg_col = 0;   // Position in original .pyg file
+    int py_line = 0, py_col = 0;      // Position in generated .py file
+
+    SourceMapEntry() = default;
+    SourceMapEntry(int pl, int pc, int yl, int yc)
+        : pyg_line(pl), pyg_col(pc), py_line(yl), py_col(yc) {}
+};
+
+/// Source map: collection of mappings between generated Python and original .pyg
+struct SourceMap {
+    vector<SourceMapEntry> entries;
+
+    void add(int pyg_line, int pyg_col, int py_line, int py_col) {
+        entries.emplace_back(pyg_line, pyg_col, py_line, py_col);
+    }
+
+    void clear() {
+        entries.clear();
+    }
+
+    /// Find corresponding position in .pyg for a position in .py
+    /// Returns the closest mapping, or (-1, -1) if not found
+    pair<int, int> map_to_source(int py_line, int py_col) const {
+        if (entries.empty()) return {-1, -1};
+
+        const SourceMapEntry* best = nullptr;
+        int best_distance = INT_MAX;
+
+        for (const auto& entry : entries) {
+            if (entry.py_line == py_line) {
+                int distance = abs(entry.py_col - py_col);
+                if (distance < best_distance) {
+                    best_distance = distance;
+                    best = &entry;
+                }
+            } else if (entry.py_line < py_line && (!best || entry.py_line > best->py_line)) {
+                // If no exact line match, use the closest previous line
+                best = &entry;
+            }
+        }
+
+        return best ? make_pair(best->pyg_line, best->pyg_col) : make_pair(-1, -1);
+    }
+};
+
 void print_tree(std::ostream& os, ParseTree& t, GrammarState* g);
 void print_tree(std::ostream& os, ParseNode *pn, GrammarState* g);
 
 string tree2str(ParseTree& t, GrammarState* g);
 string tree2str(ParseNode* pn, GrammarState* g);
+
+/// Convert parse tree to string with source map collection
+string tree2str(ParseNode* pn, GrammarState* g, SourceMap* source_map);
 
 void tree2file(const string& fn, ParseTree& t, GrammarState* g);
 

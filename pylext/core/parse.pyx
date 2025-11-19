@@ -788,6 +788,45 @@ def _import_grammar(module_name=None):
 
         return c_ast_to_text(self._ptr, node.to_ptr())
 
+    def ast_to_text_with_map(self, ParseNode node):
+        """
+        Get string representation of node in parse tree and collect source map.
+
+        Parameters
+        ----------
+        node : ParseNode
+            Node in parse tree
+
+        Returns
+        -------
+        tuple
+            (text: str, source_map: dict) where source_map contains mappings
+            from generated Python code positions to original .pyg positions.
+        """
+        if self._ptr == NULL:
+            raise InvalidParseContext()
+
+        # Create C++ SourceMap object
+        cdef SourceMap sm
+
+        # Call C++ function to generate text and collect source map
+        cdef string text = c_ast_to_text_with_map(self._ptr, node.to_ptr(), &sm)
+
+        # Convert C++ source map to Python dict
+        py_map = {
+            "version": 1,
+            "mappings": []
+        }
+
+        # Copy entries from C++ vector to Python list
+        for entry in sm.entries:
+            py_map["mappings"].append([
+                entry.pyg_line, entry.pyg_col,
+                entry.py_line, entry.py_col
+            ])
+
+        return text, py_map
+
     cdef int _add_rule(self, string lhs, vector[string] rhs, int lpr, int rpr):
         """
         Add syntax expansion rule to grammar of current context.

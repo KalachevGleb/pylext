@@ -58,6 +58,13 @@ PythonParseContext* create_python_context(bool read_by_stmt, const string & synt
 
 std::string ast_to_text(ParseContext* pcontext, ParseNode *pn);
 
+/// Convert AST to text and collect source map
+/// @param pcontext - parse context
+/// @param pn - parse node to convert
+/// @param source_map - output parameter to store source map
+/// @return generated Python code as string
+std::string ast_to_text_with_map(ParseContext* pcontext, ParseNode *pn, SourceMap* source_map);
+
 int add_lexer_rule(PythonParseContext *px, const string&nm, const string&rhs);
 int add_token(PythonParseContext *px, const string& nm, const string& tokdef);
 

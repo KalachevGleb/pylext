@@ -268,6 +268,10 @@ def exec_macros(text, vars, filename=None, by_stmt=False):
         Text to be parsed
     vars: dict
         Global variables to pass in exec()
+    filename: str, optional
+        Name of the source .pyg file for source map
+    by_stmt: bool
+        If True, return list of statements; if False, return joined string
 
     Returns
     -------
@@ -277,6 +281,9 @@ def exec_macros(text, vars, filename=None, by_stmt=False):
     """
     insert_pyg_builtins(vars)
     res = []
+    all_source_maps = []
+    current_py_line = 1  # Track current line number in generated Python code
+
     with ParseContext(vars) as px:
         for stmt_ast in parse(text, px):
             if _dbg_statements:
@@ -284,17 +291,40 @@ def exec_macros(text, vars, filename=None, by_stmt=False):
             stmt_ast = macro_expand(px, stmt_ast)
             if _dbg_statements:
                 print('Expanded :\n')
-            stmt = px.ast_to_text(stmt_ast)
+
+            # Get expanded code AND source map
+            stmt, source_map = px.ast_to_text_with_map(stmt_ast)
+
+            # Adjust py_line in source map entries to account for accumulated code
+            for mapping in source_map["mappings"]:
+                # mapping is [pyg_line, pyg_col, py_line, py_col]
+                mapping[2] += current_py_line - 1  # Adjust py_line
+                all_source_maps.append(mapping)
+
             if _dbg_statements:
                 print(f'{stmt}\n===========================================\n', flush=True)
+
+            # Update current line count
+            current_py_line += stmt.count('\n')
+            if not stmt.endswith('\n'):
+                current_py_line += 1
+
             res.append(stmt)
             exec(stmt, vars)
+
         stmt = px.import_grammar_str()
         if _dbg_statements:
             print(f'===== Generated _import_grammar function =====\n')
             print(f'{stmt}\n===========================================\n', flush=True)
         res.append(stmt)
         exec(stmt, vars)
+
+    # Store source map in module variables
+    vars['__pylext_source_map__'] = {
+        "version": 1,
+        "source_file": filename or '<unknown>',
+        "mappings": all_source_maps
+    }
 
     return res if by_stmt else ''.join(res)
 
